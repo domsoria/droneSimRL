@@ -32,3 +32,5 @@ pip install -r requirements.txt
 python drone_sim_v2_3d.py
 
 Remember that these commands should be executed in the terminal/command prompt, and make sure to replace "Desktop/my_project" with the actual path to your project.
+
+https://www.youtube.com/watch?v=z8D8lx083Kc
