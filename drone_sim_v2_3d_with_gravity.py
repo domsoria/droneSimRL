@@ -19,12 +19,16 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, 64)
         self.fc2 = nn.Linear(64, 64)
-        self.fc3 = nn.Linear(64, action_size)
+        self.fc3 = nn.Linear(64, 64)
+        self.fc4 = nn.Linear(64, 64)
+        self.fc5 = nn.Linear(64, action_size)
 
     def forward(self, state):
         x = torch.relu(self.fc1(state))
         x = torch.relu(self.fc2(x))
-        return self.fc3(x)
+        x = torch.relu(self.fc3(x))
+        x = torch.relu(self.fc4(x))
+        return self.fc5(x)
     
 
 
@@ -131,6 +135,8 @@ def move_quadcopter(action_index):
     global quadcopter_pos
     action = action_space[action_index]
     
+    #print("y: ", quadcopter_pos[1])
+
     if action == 'forward':
         quadcopter_pos[2] -= 0.1
     elif action == 'backward':
@@ -144,14 +150,19 @@ def move_quadcopter(action_index):
     elif action == 'right':
         quadcopter_pos[0] += 0.1
 
+    x= quadcopter_pos[0]
+    y= quadcopter_pos[1]
+    z= quadcopter_pos[2]
+
+
     # Aggiungi il vettore di gravità alla posizione del drone.
     quadcopter_pos[1] -= gravity_constant
 
     # Termina l'episodio se il drone ha "crashato"
-    if quadcopter_pos[1] <= 0:
+    if quadcopter_pos[1] < -2:
         return True
-
-    return False
+    else:
+        return False
 
 
     # Aggiungi il vettore di gravità alla posizione del drone.
@@ -190,7 +201,7 @@ action_size = len(action_space)
 
 # Creare e ottimizzare la rete neurale
 qnetwork = QNetwork(state_size, action_size)
-optimizer = optim.Adam(qnetwork.parameters(), lr=0.01)
+optimizer = optim.Adam(qnetwork.parameters(), lr=0.0001)
 
 #q_table = np.zeros((len(state_space), len(state_space), len(state_space), len(action_space)))
 
@@ -200,9 +211,10 @@ def reward(old_state, new_state, target):
     new_distance = np.sqrt(np.sum((np.array(new_state) - np.array(target))**2))
 
     # Crash a terra
-    print(new_state[1])
-    if new_state[1] <= 0:
+    if new_state[1] < -2:
         return -100  # Penalità grande per crash a terra
+    if new_state[1] > +5:
+        return -10  # Penalità grande se vola troppo in alto
 
     if is_colliding(new_state, target):
         return 100  # Ricompensa grande per aver raggiunto l'obiettivo
@@ -260,7 +272,6 @@ def main():
     #target_position = [np.random.uniform(-2, 2) for _ in range(3)]
     target_position = [np.random.uniform(-2, 2), np.random.uniform(-2, 2), np.random.uniform(-2, 1)]
 
-    print(target_position)
 
     epsilon = 0.3  # Probabilità di scelta casuale dell'azione
     episodes = 1000  # Numero di episodi per l'apprendimento
@@ -293,30 +304,45 @@ def main():
 
             r = reward(old_quadcopter_pos, quadcopter_pos, target_position)
             update_q_network(old_quadcopter_pos, action_index, r, quadcopter_pos)
+            #print(old_quadcopter_pos, action_index, r, quadcopter_pos)
             quadcopter_path.append(quadcopter_pos[:])
 
-            if is_colliding(quadcopter_pos, target_position) and move_done:
-                print("Episodio {} completato!".format(episode))
-                print("Il drone ha colliso con l'obiettivo!")
-                # Imposta il font e le dimensioni del testo
-             
-                # Stampa il numero di episodi completati
-                print(f'Episodio {episode} completato!')
-                # Stampa la posizione finale del drone
-                print(f'Posizione finale: {quadcopter_pos}')
-                # Stampa la posizione finale dell'obiettivo
-                print(f'Posizione obiettivo: {target_position}')
-                # Stampa il percorso del drone
-                #print(f'Percorso: {quadcopter_path}')
-                # Stampa la tabella Q
-                #print(f'Tabella Q: {q_table}')
-             
+            if is_colliding(quadcopter_pos, target_position) or move_done:
+
+                if(not move_done):
+                    print()
+                    print("######################################################")
+                    print("Episodio {} completato!".format(episode))
+                    print("Il drone ha colliso con l'obiettivo!")
+                    # Imposta il font e le dimensioni del testo
+                    # Stampa la posizione finale del drone
+                    print(f'Posizione finale: {quadcopter_pos}')
+                    # Stampa la posizione finale dell'obiettivo
+                    print(f'Posizione obiettivo: {target_position}')
+                    # Stampa il percorso del drone
+                    #print(f'Percorso: {quadcopter_path}')
+                    # Stampa la tabella Q
+                    #print(f'Tabella Q: {q_table}')
+                    print("######################################################")
+                    print()
+
+                    done = True
+                    # Genera una nuova posizione target casualmente nel range -5 a 5 per ogni dimensione
+                    #target_position = [np.random.uniform(-2, 2) for _ in range(3)]
+                    target_position = [np.random.uniform(-2, 2), np.random.uniform(-2, 2), np.random.uniform(-1, 1)]
                 
-                done = True
-                # Genera una nuova posizione target casualmente nel range -5 a 5 per ogni dimensione
-                #target_position = [np.random.uniform(-2, 2) for _ in range(3)]
-                target_position = [np.random.uniform(-2, 2), np.random.uniform(-2, 2), np.random.uniform(-2, 1)]
-                quadcopter_pos = [0, 0, 0]
+                else:
+                    print()
+                    print("######################################################")
+                    print("x: ", quadcopter_pos[0], "y: ", quadcopter_pos[1], "z: ", quadcopter_pos[2])
+                    quadcopter_pos = [0, 0, 0]
+                    target_position = [np.random.uniform(-2, 2), np.random.uniform(-2, 2), np.random.uniform(-1, 1)]
+
+                    print('Crash a terra: reset position')
+                    move_done = False
+                    print("######################################################")
+
+
                 
 
 
